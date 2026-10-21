@@ -353,15 +353,15 @@ function loadSave() {
 }
 
 // ---------- 시작·끝 ----------
-// 한 장씩 넘기기 기준으로 풀리는 것을 확인한 판 중에서 고른다 (seeds.js)
-function pickSeed() {
-  const pool = typeof SOLVABLE_SEEDS !== 'undefined' ? SOLVABLE_SEEDS : null;
+// 고른 모드(1장씩·3장씩) 그대로 끝까지 풀리는 것을 확인한 판 중에서 고른다 (seeds.js)
+function pickSeed(draw) {
+  const pool = draw === 3 ? (typeof SOLVABLE_SEEDS_3 !== 'undefined' ? SOLVABLE_SEEDS_3 : null) : (typeof SOLVABLE_SEEDS !== 'undefined' ? SOLVABLE_SEEDS : null);
   return pool && pool.length ? pool[Math.floor(Math.random() * pool.length)] : (Math.random() * 2 ** 31) | 0;
 }
 function startGame(m, seed) {
   mode = m;
   clearTimeout(autoTimer); busy = false;
-  st = L.newGame(m, seed === undefined ? pickSeed() : seed);
+  st = L.newGame(m, seed === undefined ? pickSeed(m) : seed);
   hist = []; elapsed = 0; won = false; playing = true; paused = false;
   buildCards();
   hideOverlay();

@@ -1,6 +1,7 @@
 'use strict';
-// 풀이 도구: 한 장씩 넘기고 더미를 무제한 다시 넘길 수 있을 때 이 판이 풀리는지 깊이 우선 탐색으로 확인한다.
-// 더미·웨이스트는 계속 넘길 수 있으니 '언제든 아무 카드나 꺼낼 수 있는 주머니'로 다룬다. (게임 화면에는 들어가지 않는다)
+// 풀이 도구: 더미를 무제한 다시 넘길 수 있을 때 이 판이 풀리는지 깊이 우선 탐색으로 확인한다. (게임 화면에는 들어가지 않는다)
+// - solve  : 한 장씩 넘기기. 더미·웨이스트는 계속 넘길 수 있으니 '언제든 아무 카드나 꺼낼 수 있는 주머니'로 다룬다
+// - solve3 : 세 장씩 넘기기. 웨이스트 맨 위 한 장만 쓸 수 있어서, 꺼낼 수 있는 카드가 넘기는 위치에 따라 정해진다
 const L = require('../logic.js');
 const { sOf, rOf, isRed } = L;
 
@@ -75,4 +76,87 @@ function solve(seed, maxNodes = 20000) {
   const ok = dfs();
   return { ok, nodes, path: ok ? path.map((m) => ({ ...m })) : null };
 }
-module.exports = { solve };
+
+// 세 장씩 넘기기에서 지금 꺼낼 수 있는 자리들. talon = 넘기는 순서대로 늘어놓은 더미+웨이스트, pos = 지금까지 넘긴 장수
+// (웨이스트 맨 위 = talon[pos-1]). 지금 위치에서 3장씩 넘기거나, 끝까지 넘긴 뒤 다시 뒤집어 3장씩 넘겨 닿는 자리만 쓸 수 있다.
+// 돌려주는 값: 그 카드가 웨이스트 맨 위에 오는 pos 값들 (1부터)
+function reachable(len, pos) {
+  const js = new Set();
+  if (pos > 0) js.add(pos);
+  for (let j = pos + 3; j < len; j += 3) js.add(j);
+  if (len > 0) js.add(len);
+  for (let j = 3; j < len; j += 3) js.add(j);
+  return [...js].sort((a, b) => a - b);
+}
+
+function solve3(seed, maxNodes = 20000) {
+  const st = L.newGame(3, seed);
+  const tab = st.tab.map((c) => c.slice());
+  const upN = st.tab.map((c) => c.length ? 1 : 0);
+  const found = [0, 0, 0, 0];
+  const talon = st.stock.slice().reverse();                        // 더미는 맨 뒤에서 꺼내므로 뒤집으면 넘기는 순서
+  let pos = 0;
+  let nodes = 0;
+  const path = [];
+  const visited = new Set();
+  const key = () => tab.map((c, i) => c.join(',') + ':' + upN[i]).join('|') + '#' + found.join('') + '#' + talon.join(',') + '@' + pos;
+  const canTab = (id, d) => {
+    const col = tab[d];
+    if (!col.length) return rOf(id) === 13;
+    const t = col[col.length - 1];
+    return isRed(t) !== isRed(id) && rOf(t) === rOf(id) + 1;
+  };
+  const canFound = (id) => rOf(id) === found[sOf(id)] + 1;
+
+  function dfs() {
+    if (found[0] + found[1] + found[2] + found[3] === 52) return true;
+    if (++nodes > maxNodes) return false;
+    const k = key(); if (visited.has(k)) return false; visited.add(k);
+    const moves = [];
+    for (let c = 0; c < 7; c++) { const col = tab[c]; if (col.length && canFound(col[col.length - 1])) moves.push({ pr: 100 + (upN[c] === 1 && col.length > 1 ? 20 : 0), t: 'tf', c }); }
+    const js = reachable(talon.length, pos);
+    for (const j of js) { const id = talon[j - 1]; if (canFound(id)) moves.push({ pr: 95, t: 'wf', j, id }); }
+    for (let c = 0; c < 7; c++) {
+      const col = tab[c]; if (!col.length) continue;
+      const first = col.length - upN[c];
+      for (const i of first === col.length - 1 ? [first] : [first, col.length - 1]) {
+        for (let d = 0; d < 7; d++) {
+          if (d === c || !canTab(col[i], d)) continue;
+          if (i === 0 && !tab[d].length) continue;
+          const reveal = i === first && first > 0;
+          moves.push({ pr: reveal ? 80 : i === 0 ? 70 : 20, t: 'tt', c, i, d });
+        }
+      }
+    }
+    for (const j of js) { const id = talon[j - 1]; for (let d = 0; d < 7; d++) if (canTab(id, d)) moves.push({ pr: 50 + (tab[d].length ? 5 : -5), t: 'wt', j, id, d }); }
+    moves.sort((a, b) => b.pr - a.pr);
+    for (const m of moves) {
+      path.push(m);
+      if (m.t === 'tf') {
+        const col = tab[m.c], id = col.pop(); found[sOf(id)]++; const wasUp = upN[m.c]; if (upN[m.c] > 0) upN[m.c]--; if (col.length && upN[m.c] === 0) upN[m.c] = 1;
+        if (dfs()) return true;
+        upN[m.c] = wasUp; found[sOf(id)]--; col.push(id);
+      } else if (m.t === 'wf' || m.t === 'wt') {
+        const oldPos = pos;
+        talon.splice(m.j - 1, 1); pos = m.j - 1;                    // 꺼낸 뒤에는 그 아래 카드가 웨이스트 맨 위
+        if (m.t === 'wf') found[sOf(m.id)]++; else { tab[m.d].push(m.id); upN[m.d]++; }
+        if (dfs()) return true;
+        if (m.t === 'wf') found[sOf(m.id)]--; else { upN[m.d]--; tab[m.d].pop(); }
+        talon.splice(m.j - 1, 0, m.id); pos = oldPos;
+      } else {
+        const col = tab[m.c], moved = col.splice(m.i); const n = moved.length; const wasUp = upN[m.c];
+        upN[m.c] -= n; if (col.length && upN[m.c] === 0) upN[m.c] = 1;
+        tab[m.d].push(...moved); upN[m.d] += n;
+        if (dfs()) return true;
+        upN[m.d] -= n; tab[m.d].splice(tab[m.d].length - n); col.push(...moved); upN[m.c] = wasUp;
+      }
+      path.pop();
+      if (nodes > maxNodes) return false;
+    }
+    return false;
+  }
+  const ok = dfs();
+  return { ok, nodes, path: ok ? path.map((m) => ({ ...m })) : null };
+}
+
+module.exports = { solve, solve3, reachable };
