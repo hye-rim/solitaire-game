@@ -117,6 +117,56 @@ test('serialize / snapshot round trip and rejection of broken saves', () => {
   assert.strictEqual(L.deserialize({}), null);
 });
 
+// 어느 열도 옮길 수 없는 판: 열마다 앞면 스페이드 한 장 (색이 같아 서로 못 올리고, A 가 아니라 파운데이션에도 못 간다)
+function lockedBoard(draw) {
+  const st = empty(draw);
+  for (let c = 0; c < 7; c++) put(st, c, [id(0, 2 + c)]);                      // ♠2 … ♠8
+  return st;
+}
+const dead = [id(2, 9), id(2, 10), id(2, 11), id(2, 12), id(2, 13), id(2, 2)];  // 클로버 9 J Q K 2: 놓을 곳이 없는 카드
+
+test('stuck: nothing movable and nothing playable in the stock gives no hint (never an endless draw loop)', () => {
+  for (const draw of [1, 3]) {
+    const st = lockedBoard(draw);
+    st.stock = dead.slice();
+    assert.ok(L.isStuck(st), `draw ${draw}: stuck`);
+    assert.strictEqual(L.hint(st), null, `draw ${draw}: no hint`);
+    // 한 바퀴를 다 돌려도 달라지는 게 없다. 몇 번을 넘기든(웨이스트가 쌓였다 뒤집혀도) 계속 막힌 판이다
+    for (let i = 0; i < 80; i++) { L.drawStock(st); assert.strictEqual(L.hint(st), null, `draw ${draw}: still no hint after ${i + 1} draws`); }
+    assert.ok(L.isStuck(st));
+  }
+});
+
+test('hint says draw only when drawing really brings a playable card to the top', () => {
+  const play = id(1, 7);                                                        // ♥7: ♠8 위에 올라간다
+  // 1장씩: 더미 어디에 있든 결국 맨 위에 온다
+  let st = lockedBoard(1);
+  st.stock = [dead[0], dead[1], dead[2], play, dead[3], dead[4]];
+  assert.deepStrictEqual(L.hint(st), { type: 'draw' });
+  assert.ok(!L.isStuck(st));
+  // 3장씩: 맨 위에 오는 건 3장째마다(더미 맨 뒤에서 3·6번째)뿐. 거기 있으면 넘기면 나온다
+  st = lockedBoard(3);
+  st.stock = [dead[0], dead[1], dead[2], play, dead[3], dead[4]];               // 뒤에서 3번째 → 첫 넘김의 맨 위
+  assert.deepStrictEqual(L.hint(st), { type: 'draw' });
+  // 3장씩에서 맨 위에 영영 못 오는 자리(뒤에서 2번째)에 있으면 아무리 넘겨도 못 쓴다. 넘기라고 하면 안 된다
+  st = lockedBoard(3);
+  st.stock = [dead[0], dead[1], dead[2], dead[3], play, dead[4]];
+  assert.strictEqual(L.hint(st), null, 'unreachable card: do not tell the player to draw forever');
+  assert.ok(L.isStuck(st));
+  // 실제로 넘겨 봐도 그 카드는 맨 위에 오지 않는다
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) { L.drawStock(st); if (st.waste.length) seen.add(st.waste[st.waste.length - 1]); }
+  assert.ok(!seen.has(play));
+});
+
+test('with a playable card on top of the waste the hint is the move, not another draw', () => {
+  const st = lockedBoard(1);
+  st.waste = [id(1, 7)]; st.up[id(1, 7)] = true;
+  const h = L.hint(st);
+  assert.strictEqual(h.type, 'move');
+  assert.deepStrictEqual(h.src, { k: 'w' });
+});
+
 test('hint never suggests shuffling the same run between columns', () => {
   const st = empty();
   put(st, 0, [id(2, 8)], [id(1, 7)]);                                          // black 8, red 7 (an already linked pair)

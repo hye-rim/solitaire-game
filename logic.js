@@ -196,13 +196,29 @@ function hint(st) {
   if (m && rate(st, m) > -5) return { type: 'move', ...m };
   if (canDraw(st) && stockOrWastePlayable(st)) return { type: 'draw' };
   if (m) return { type: 'move', ...m };
-  return canDraw(st) && st.passes < 3 ? { type: 'draw' } : null;            // 더 쓸 게 없어도 두 바퀴까지는 넘겨 보라고 권한다
+  return null;                                                              // 더 옮길 것도, 넘겨서 나올 것도 없다 (더미만 계속 넘기라고 권하지 않는다)
 }
-// 더미·웨이스트 어딘가에 지금 판에 놓을 수 있는 카드가 있는가 (넘기다 보면 나온다)
+// 더미를 계속 넘기다 보면 웨이스트 맨 위에 놓을 수 있는 카드가 나오는가. 실제로 넘겨 보는 것처럼 따라가 본다.
+// (3장씩 넘기면 맨 위에 올라오는 건 3장째마다뿐이라, 더미 어딘가에 놓을 수 있는 카드가 '있기만' 해서는 영영 안 나올 수 있다.
+//  열은 안 바뀌니 한 바퀴만 돌아보면 충분하다)
 function stockOrWastePlayable(st) {
-  for (const id of st.stock.concat(st.waste)) {
+  const playable = (id) => {
     if (canDropFound(st, id)) return true;
     for (let c = 0; c < TAB; c++) if (canDropTab(st, id, c)) return true;
+    return false;
+  };
+  let stock = st.stock.slice(), waste = st.waste.slice();
+  if (waste.length && playable(waste[waste.length - 1])) return true;
+  let recycled = 0;
+  for (let guard = 0; guard < 2 * (stock.length + waste.length) + 4; guard++) {
+    if (!stock.length) {
+      if (!waste.length || recycled >= 2) return false;
+      stock = waste.slice().reverse(); waste = []; recycled++;
+      continue;
+    }
+    const n = Math.min(st.draw, stock.length);
+    for (let i = 0; i < n; i++) waste.push(stock.pop());
+    if (playable(waste[waste.length - 1])) return true;
   }
   return false;
 }

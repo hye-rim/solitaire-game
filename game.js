@@ -201,7 +201,7 @@ function showHint() {
   if (!st || won || !playing || busy) return;
   const h = L.hint(st);
   clearHint();
-  if (!h) { toast('움직일 수 있는 카드가 없어요'); sfx.nope(); return; }
+  if (!h) { toast('더 움직일 수 없어요! 되돌리기나 새 게임을 눌러 보세요', 3500); sfx.nope(); return; }
   sfx.hint();
   if (h.type === 'draw') {
     toast(st.stock.length ? '더미를 눌러 카드를 넘겨요 (왼쪽 위)' : '웨이스트를 다시 더미로 뒤집어요 (왼쪽 위)');
