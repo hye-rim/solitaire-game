@@ -353,9 +353,9 @@ function loadSave() {
 }
 
 // ---------- 시작·끝 ----------
-// 고른 모드(1장씩·3장씩) 그대로 끝까지 풀리는 것을 확인한 판 중에서 고른다 (seeds.js)
+// 고른 모드(1장씩·3장씩) 그대로 끝까지 풀리는 것을 확인한 판 중에서 고른다 (seeds.js). 3장씩은 그중 풀이가 쉬운 판(EASY_SEEDS_3)만
 function pickSeed(draw) {
-  const pool = draw === 3 ? (typeof SOLVABLE_SEEDS_3 !== 'undefined' ? SOLVABLE_SEEDS_3 : null) : (typeof SOLVABLE_SEEDS !== 'undefined' ? SOLVABLE_SEEDS : null);
+  const pool = draw === 3 ? (typeof EASY_SEEDS_3 !== 'undefined' ? EASY_SEEDS_3 : typeof SOLVABLE_SEEDS_3 !== 'undefined' ? SOLVABLE_SEEDS_3 : null) : (typeof SOLVABLE_SEEDS !== 'undefined' ? SOLVABLE_SEEDS : null);
   return pool && pool.length ? pool[Math.floor(Math.random() * pool.length)] : (Math.random() * 2 ** 31) | 0;
 }
 function startGame(m, seed) {

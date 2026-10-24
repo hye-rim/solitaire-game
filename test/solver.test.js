@@ -6,7 +6,7 @@ const { solve, solve3, reachable } = require('../tools/solver.js');
 const { replay } = require('../tools/verify.js');
 
 const seeds = {};
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'seeds.js'), 'utf8').replace(/const (SOLVABLE_SEEDS(?:_3)?)/g, 'this.$1'), seeds);
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'seeds.js'), 'utf8').replace(/const (SOLVABLE_SEEDS(?:_3)?|EASY_SEEDS_3)/g, 'this.$1'), seeds);
 
 test('draw-3: only every third card (and the last) can reach the top of the waste', () => {
   assert.deepStrictEqual(reachable(7, 0), [3, 6, 7]);
@@ -39,5 +39,18 @@ test('listed draw-1 deals are still won with the draw-1 rules', () => {
     const r = solve(s, 150000);
     assert.ok(r.ok, 'solver finds seed ' + s);
     assert.strictEqual(replay(s, r.path, 1), 'won', 'replay wins seed ' + s);
+  }
+});
+
+test('easy draw-3 list: a subset of the solvable list, every deal solved within the node limit and won on replay', () => {
+  const { EASY_NODES } = require('../tools/seedfile.js');
+  const all = new Set(seeds.SOLVABLE_SEEDS_3);
+  assert.ok(seeds.EASY_SEEDS_3.length >= 100, 'enough easy deals');
+  assert.strictEqual(new Set(seeds.EASY_SEEDS_3).size, seeds.EASY_SEEDS_3.length, 'unique');
+  for (const s of seeds.EASY_SEEDS_3) {
+    assert.ok(all.has(s), 'seed ' + s + ' is in the solvable list');
+    const r = solve3(s, EASY_NODES);
+    assert.ok(r.ok, 'solver finds easy seed ' + s + ' within ' + EASY_NODES + ' nodes');
+    assert.strictEqual(replay(s, r.path, 3), 'won', 'replay wins seed ' + s);
   }
 });
